@@ -1,0 +1,95 @@
+#include "util.h"
+#include "commands.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <time.h>
+#include <sys/wait.h>
+#include <sys/resource.h>
+#include <sys/time.h>
+
+
+/* error handling utilities */
+
+int print_error(const char *format, ...)
+{
+	int ret;
+	va_list aptr;
+
+	va_start(aptr, format);
+	fprintf(stderr, "%s%sERROR:%s ", COL_BLD, COL_RED, COL_RST);
+	ret = vfprintf(stderr, format, aptr);
+	fprintf(stderr, "\n");
+	va_end(aptr);
+
+	return ret;
+}
+
+int print_error_errno(const char *format, ...)
+{
+	int ret;
+	va_list aptr;
+
+	va_start(aptr, format);
+	fprintf(stderr, "%s%sERROR:%s ", COL_BLD, COL_RED, COL_RST);
+	ret = vfprintf(stderr, format, aptr);
+	fprintf(stderr, ": %s\n", strerror(errno));
+	va_end(aptr);
+
+	return ret;
+}
+
+
+/* string parsing */
+
+int str_split(const char* src, const char* delims, char*** dest) {
+    char *s = strdup(src);
+    char *c, *saveptr, *tmp;
+    int num_tokens = 0, num_size = 10;
+    c = strtok_r(s, delims, &saveptr);
+    if (c == NULL)
+        return 0;
+        
+    *dest = malloc(num_size * sizeof(char*));
+    if (*dest == NULL) 
+        return -1;
+    
+    tmp = strdup(c);
+    if (tmp == NULL) {
+        free(*dest);
+        free(s);
+        *dest = NULL;
+        return -1;
+    }
+    
+    (*dest)[num_tokens] = tmp;
+    num_tokens++;
+    
+    while ((c = strtok_r(NULL, delims, &saveptr)) != NULL) {
+        if (num_tokens == num_size) {
+            num_size += 10;
+            void* _tmp = realloc(*dest, num_size*sizeof(char*));
+            if (!_tmp) {
+                fprintf(stderr, "ERROR: split() cannot realloc() memory needed.");
+                return -1;
+            }
+            *dest = (char**)_tmp;
+        }
+        tmp = strdup(c);
+        if (tmp == NULL) {
+            free(*dest);
+            free(s);
+            *dest = NULL;
+            return -1;
+        }
+        
+        (*dest)[num_tokens] = tmp;
+        num_tokens++;
+    }
+    return num_tokens;
+}

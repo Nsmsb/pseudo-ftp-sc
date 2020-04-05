@@ -25,6 +25,16 @@ void dns_error(char *msg) /* dns-style error */
     exit(0);
 }
 
+void new_dns_error(char *msg, int error) /* dns-style error for new API */
+{
+    if (error == EAI_SYSTEM) {
+        unix_error(msg);
+    } else {
+        fprintf(stderr, "%s: %s\n", msg, gai_strerror(error));
+    }
+    exit(0);
+}
+
 void app_error(char *msg) /* application error */
 {
     fprintf(stderr, "%s\n", msg);
@@ -91,7 +101,7 @@ void Pause()
 
 unsigned int Sleep(unsigned int secs) 
 {
-    return(sleep(secs));
+    return sleep(secs);
 }
 
 unsigned int Alarm(unsigned int seconds) {
@@ -102,7 +112,7 @@ void Setpgid(pid_t pid, pid_t pgid) {
     int rc;
 
     if ((rc = setpgid(pid, pgid)) < 0)
-        unix_error("Setpgid error");
+	unix_error("Setpgid error");
     return;
 }
 
@@ -445,6 +455,28 @@ struct hostent *Gethostbyaddr(const char *addr, int len, int type)
     return p;
 }
 
+int Getaddrinfo(const char *node, const char *service,
+                const struct addrinfo *hints, struct addrinfo **res)
+{
+    int r;
+    if ((r = getaddrinfo(node, service, hints, res)) != 0) {
+        new_dns_error("Getaddrinfo error", r);
+    }
+    return r;                
+}
+                
+
+int Getnameinfo(const SA *sa, socklen_t salen, char *host, size_t hostlen,
+                char *serv, size_t servlen, int flags)
+{
+    int r;
+    if ((r = getnameinfo(sa, salen, host, hostlen, serv, servlen, flags))
+        != 0) {
+        new_dns_error("Getnameinfo error", r);
+    }
+    return r;
+}
+
 /************************************************
  * Wrappers for Pthreads thread control functions
  ************************************************/
@@ -597,7 +629,7 @@ static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n)
 
     /* Copy min(n, rp->rio_cnt) bytes from internal buf to user buf */
     cnt = n;          
-    if (rp->rio_cnt < n)   
+    if ((size_t)(rp->rio_cnt) < n)   
 	cnt = rp->rio_cnt;
     memcpy(usrbuf, rp->rio_bufptr, cnt);
     rp->rio_bufptr += cnt;
@@ -653,7 +685,7 @@ ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
     int n, rc;
     char c, *bufp = usrbuf;
 
-    for (n = 1; n < maxlen; n++) { 
+    for (n = 1; (size_t)n < maxlen; n++) { 
 	if ((rc = rio_read(rp, &c, 1)) == 1) {
 	    *bufp++ = c;
 	    if (c == '\n')
@@ -685,7 +717,7 @@ ssize_t Rio_readn(int fd, void *ptr, size_t nbytes)
 
 void Rio_writen(int fd, void *usrbuf, size_t n) 
 {
-    if (rio_writen(fd, usrbuf, n) != n)
+    if (rio_writen(fd, usrbuf, n) != (ssize_t)n)
 	unix_error("Rio_writen error");
 }
 
@@ -715,37 +747,68 @@ ssize_t Rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
 /******************************** 
  * Client/server helper functions
  ********************************/
+
+int gai_error;
+
 /*
  * open_clientfd - open connection to server at <hostname, port> 
  *   and return a socket descriptor ready for reading and writing.
- *   Returns -1 and sets errno on Unix error. 
- *   Returns -2 and sets h_errno on DNS (gethostbyname) error.
+ *   Returns a negative value on error.
+ *      If this negative value equals -1, then check errno for details. 
+ *      If this negative value equals -2, then use gai_strerror(gai_error)
+ *          for details.
  */
-/* $begin open_clientfd */
-int open_clientfd(char *hostname, int port) 
+int open_clientfd(char *hostname, int port)
 {
     int clientfd;
-    struct hostent *hp;
-    struct sockaddr_in serveraddr;
-
-    if ((clientfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-	return -1; /* check errno for cause of error */
-
-    /* Fill in the server's IP address and port */
-    if ((hp = gethostbyname(hostname)) == NULL)
-	return -2; /* check h_errno for cause of error */
-    bzero((char *) &serveraddr, sizeof(serveraddr));
-    serveraddr.sin_family = AF_INET;
-    bcopy((char *)hp->h_addr_list[0], 
-	  (char *)&serveraddr.sin_addr.s_addr, hp->h_length);
-    serveraddr.sin_port = htons(port);
-
+    struct addrinfo hints;
+    struct addrinfo *server_info;
+    struct sockaddr_in *serveraddr;
+    int r;
+       
+    if ((clientfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        return -1; /* check errno for cause of error */
+    }
+    
+    /* Prepare 'hints' to specify the kind of information we are looking for */
+    memset((void *)&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_INET; /* we only care about IPv4 addresses */
+    
+    /* 
+     * Fill in the server's IP address in the serveraddr struct.
+     * Note that the 'hostname' input parameter can be either a hostname or
+     * a numeric address string.
+     */
+    if ((r = getaddrinfo(hostname, NULL, &hints, &server_info)) != 0) {
+        gai_error = r;
+        return -2; 
+    }
+     
+    /* This should never happen if getaddrinfo completed successfully */
+    if ((server_info == NULL) || (server_info->ai_addr == NULL)) { 
+        app_error("getaddrinfo returned weird result");
+    }
+     
+    /* 
+     * Note that the DNS query may return several results
+     * (for example, if the hostname corresponds to multiple IP addresses).
+     * We will only use the first result in the list.
+     */
+    serveraddr = (struct sockaddr_in *) (server_info->ai_addr);
+     
+    /* Fill in the server's port number in the serveraddr struct */
+    serveraddr->sin_port = htons(port);
+     
     /* Establish a connection with the server */
-    if (connect(clientfd, (SA *) &serveraddr, sizeof(serveraddr)) < 0)
-	return -1;
+    if (connect(clientfd, (SA *)serveraddr, sizeof(*serveraddr)) < 0) {
+        return -1; /* check errno for details */
+    }
+
+    /* Free the memory allocated for the result(s) of the getaddrinfo query */
+    freeaddrinfo(server_info);
+     
     return clientfd;
 }
-/* $end open_clientfd */
 
 /*  
  * open_listenfd - open and return a listening socket on port
@@ -790,10 +853,13 @@ int Open_clientfd(char *hostname, int port)
     int rc;
 
     if ((rc = open_clientfd(hostname, port)) < 0) {
-	if (rc == -1)
-	    unix_error("Open_clientfd Unix error");
-	else        
-	    dns_error("Open_clientfd DNS error");
+        if (rc == -1) {
+            unix_error("Open_clientfd error");
+        } else if(rc == -2) {       
+            new_dns_error("Open_clientfd (getaddrinfo) error", gai_error);
+        } else {
+            app_error("Open_clientfd: unexpected error type");
+        }
     }
     return rc;
 }
@@ -806,6 +872,34 @@ int Open_listenfd(int port)
 	unix_error("Open_listenfd error");
     return rc;
 }
+
+const char* Inet_ntop(int af, const void *src, char *dst, socklen_t size)
+{
+    const char* r;
+    
+    if ((r = inet_ntop(af, src, dst, size)) == NULL) {
+        unix_error("Inet_ntop error");
+    }
+    return r;
+}
+
+int Inet_pton(int af, const char *src, void *dst)
+{
+    int r;
+    
+    r = inet_pton(af, src, dst);
+    
+    if (r == 0) {
+        app_error("Inet_pton error: src string does not correspond to a valid address representation");
+    }
+    
+    if (r < 0) {
+        unix_error("Inet_pton error");
+    }    
+    
+    return r;
+}
+
 /* $end csapp.c */
 
 

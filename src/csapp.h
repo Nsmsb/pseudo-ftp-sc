@@ -128,6 +128,10 @@ void Connect(int sockfd, struct sockaddr *serv_addr, int addrlen);
 /* DNS wrappers */
 struct hostent *Gethostbyname(const char *name);
 struct hostent *Gethostbyaddr(const char *addr, int len, int type);
+int Getaddrinfo(const char *node, const char *service,
+                const struct addrinfo *hints, struct addrinfo **res);
+int Getnameinfo(const SA *sa, socklen_t salen, char *host, size_t hostlen,
+                char *serv, size_t servlen, int flags);
 
 /* Pthreads thread control wrappers */
 void Pthread_create(pthread_t *tidp, pthread_attr_t *attrp, 
@@ -159,12 +163,15 @@ ssize_t Rio_readnb(rio_t *rp, void *usrbuf, size_t n);
 ssize_t Rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen);
 
 /* Client/server helper functions */
+extern int gai_error;
 int open_clientfd(char *hostname, int portno);
 int open_listenfd(int portno);
 
 /* Wrappers for client/server helper functions */
 int Open_clientfd(char *hostname, int port);
 int Open_listenfd(int port); 
+const char* Inet_ntop(int af, const void *src, char *dst, socklen_t size);
+int Inet_pton(int af, const char *src, void *dst);
 
 #endif /* __CSAPP_H__ */
 /* $end csapp.h */

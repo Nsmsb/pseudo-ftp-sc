@@ -55,9 +55,7 @@ int str_split(const char* src, const char* delims, char*** dest) {
     if (c == NULL)
         return 0;
         
-    *dest = malloc(num_size * sizeof(char*));
-    if (*dest == NULL) 
-        return -1;
+    *dest = Malloc(num_size * sizeof(char*));
     
     tmp = strdup(c);
     if (tmp == NULL) {
@@ -73,11 +71,7 @@ int str_split(const char* src, const char* delims, char*** dest) {
     while ((c = strtok_r(NULL, delims, &saveptr)) != NULL) {
         if (num_tokens == num_size) {
             num_size += 10;
-            void* _tmp = realloc(*dest, num_size*sizeof(char*));
-            if (!_tmp) {
-                fprintf(stderr, "ERROR: split() cannot realloc() memory needed.");
-                return -1;
-            }
+            void* _tmp = Realloc(*dest, num_size*sizeof(char*));
             *dest = (char**)_tmp;
         }
         tmp = strdup(c);

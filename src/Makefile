@@ -19,7 +19,7 @@ INCLUDE = csapp.h util.h commands.h
 OBJS = csapp.o util.o commands.o
 INCLDIR = -I.
 
-PROGS = q1 q3
+PROGS = server client
 
 
 
@@ -32,4 +32,4 @@ all: $(PROGS)
 	$(CC) -o $@ $(LDFLAGS) $^ $(LIBS)
 	
 clean:
-	rm -f $(PROGS) *.o
+	rm -f $(PROGS) *.o *_rcvd

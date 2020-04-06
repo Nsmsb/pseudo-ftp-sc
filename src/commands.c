@@ -1,6 +1,9 @@
+#include <stdio.h>
 #include <string.h>
 #include "commands.h"
 #include "csapp.h"
+#include "util.h"
+
 
 int is_valid_cmd(const char *cmd) {
 
@@ -34,7 +37,21 @@ int get(const char* file_name, int fd) {
     // char fsize[MAXLINE];
     rio_t rio;
 
+    file_size = -1;
+    sent_bytes = 0;
     file_fd = Open(file_name, O_RDONLY, 0);
+
+    // if file not found, send -1 size
+    if(fd < 0)
+    {
+        sprintf(buf, "%ld", file_size);
+        buf[strlen(buf)] = '\n';
+
+        Rio_writen(fd, &buf, strlen(buf));
+        // Rio_writen(fd, '\n', 1);
+
+        return sent_bytes;
+    }
 
     Rio_readinitb(&rio, file_fd);
     sent_bytes = 0;
@@ -46,7 +63,11 @@ int get(const char* file_name, int fd) {
     printf("file size: %ld\n", file_size);
 
     // sending file size
-    Rio_writen(fd, &file_size, sizeof(file_size));
+    sprintf(buf, "%ld", file_size);
+    buf[strlen(buf)] = '\n';
+    Rio_writen(fd, &buf, strlen(buf));
+    // Rio_writen(fd, '\n', 1);
+    // Rio_writen(fd, &file_size, sizeof(file_size));
 
     printf("size sent\n");
     
@@ -68,16 +89,31 @@ int get_client(const char* res, rio_t fds) {
     time_t start, end;
     unsigned long ttime;
     char buf[MAXBUF];
+    
+    char *file_name = malloc(strlen(res) + 5);
 
+    // setting received file name to filename_rcvd
+    sprintf(file_name, "%s_rcvd", res); 
 
     res_bytes = 0;
-    file_fd = Open(res, O_WRONLY | O_CREAT | O_APPEND, 0666);
+    file_fd = Open(file_name, O_WRONLY | O_CREAT | O_APPEND, 0666);
 
     // get file size
     printf("reading file size\n");
 
-    Rio_readnb(&fds,&file_size, sizeof(size_t));
-    printf("file size: %ld\n", file_size);
+    file_size = 0;
+    n = Rio_readlineb(&fds, buf, MAXLINE);
+    file_size = atoi(buf);
+    // n = Rio_readnb(&fds,&file_size, sizeof(size_t));
+
+    // file not found
+    if(file_size == 0)
+    {
+        printf("file not found\n");
+        return res_bytes;
+    }
+
+    // printf("read %ld, file size: %ld\n", n, file_size);
 
     // transfer start
     start = time(NULL);
@@ -103,8 +139,122 @@ int get_client(const char* res, rio_t fds) {
 
     ttime = difftime(end, start);
 
-    printf("received %ld bytes in %ld\n", res_bytes, (unsigned long)ttime);
+    printf("received %ld bytes (%ld/s)\n", res_bytes, (unsigned long)(ttime == 0 ? 0 : res_bytes/ttime));
     
     
     return res_bytes;
+}
+
+
+char* run_cmd(char *cmd)
+{
+    char *result = malloc(MAXLINE);
+    int pfd[2];
+    char **args;
+    int n = str_split(cmd, " ", &args);
+
+    // adding las null element for the execvp
+    args = (char**) Realloc(args, n+1);
+    args[n] = NULL;
+    
+
+    pipe(pfd);
+
+    if(Fork() == 0)
+    {
+        Close(pfd[0]);
+        Dup2(pfd[1], 1);
+        execvp(args[0], args);
+        exit(0);
+    }
+    Close(pfd[1]);
+    Rio_readn(pfd[0], result, MAXLINE);
+    wait(NULL);
+
+    return result;
+}
+
+char* remove_file(const char *req)
+{   
+    char *res = malloc(MAXLINE);
+    char *file;
+    int deleted_files, fn, rm_flag;
+    deleted_files = 0;
+    char **files_names;
+    
+
+    fn = str_split(req, " ", &files_names);
+
+    for (int i = 1; i < fn; i++)
+    {
+        file = parse_file_name(files_names[i]);
+        rm_flag = remove(file);
+        
+        
+        if(rm_flag == 0)
+            deleted_files++;
+    }
+
+    // writing to response to be returned
+    sprintf(res, "deleted %d files.\n", deleted_files);
+
+    return res;
+}
+
+
+char* remove_dir(const char *req)
+{   
+    char *res = malloc(MAXLINE);
+    char *file;
+    int deleted_files, fn, rm_flag;
+    deleted_files = 0;
+    char **files_names;
+    
+
+    fn = str_split(req, " ", &files_names);
+
+    for (int i = 1; i < fn; i++)
+    {
+        file = parse_file_name(files_names[i]);
+        rm_flag = rmdir(file);
+        
+        if(rm_flag == 0)
+            deleted_files++;
+    }
+
+    // writing to response to be returned
+    sprintf(res, "deleted %d directories.\n", deleted_files);
+
+    return res;
+}
+
+char* put_file(char *req)
+{
+    ssize_t n;
+    char *buff[MAXBUF];
+    char *res = malloc(MAXLINE);
+    char *file;
+    int displayed_files, fn, fd;
+    displayed_files = 0;
+    char **files_names;
+    
+
+    fn = str_split(req, " ", &files_names);
+
+    for (int i = 1; i < fn; i++)
+    {
+        file = parse_file_name(files_names[i]);
+        fd = Open(file, O_RDONLY, 0);
+        if(fd > 0)
+        {
+            printf("file %s:\n", files_names[i]);
+            while ((n = Rio_readn(fd, buff, MAXBUF)) != 0)
+                Rio_writen(1, buff, n);
+            displayed_files++;
+        }
+    }
+
+    sprintf(res,"displayed %d file(s)\n", displayed_files);
+    return res;
+    
 }

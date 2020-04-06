@@ -47,6 +47,25 @@ int print_error_errno(const char *format, ...)
 
 /* string parsing */
 
+char* parse_file_name(char *name)
+{
+    int name_size = strlen(name);
+    char *result = malloc(name_size);
+    strcpy(result, name);
+
+    if(strncmp("./", name, 2) != 0) {
+        result = Realloc(result, name_size + 2);
+        sprintf(result, "./%s", name);
+    }
+
+    char *pos;
+    if ((pos=strchr(result, '\n')) != NULL)
+    *pos = '\0';
+
+    
+    return result;
+}
+
 int str_split(const char* src, const char* delims, char*** dest) {
     char *s = strdup(src);
     char *c, *saveptr, *tmp;
@@ -85,5 +104,6 @@ int str_split(const char* src, const char* delims, char*** dest) {
         (*dest)[num_tokens] = tmp;
         num_tokens++;
     }
+
     return num_tokens;
 }

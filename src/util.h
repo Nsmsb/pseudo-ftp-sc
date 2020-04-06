@@ -43,5 +43,16 @@ int print_error_errno(const char *format, ...);
 int str_split(const char* src, const char* delims, char*** dest);
 
 
+/**
+ * parse file name into valide file name
+ * ex: file1 --> ./file1, also it delets '\n' character at the end
+ * 
+ * @param name: file name
+ * @return a new char* contains parsed file_name (allocated memory)
+ * 
+ **/
+char* parse_file_name(char *name);
+
+
 
 #endif

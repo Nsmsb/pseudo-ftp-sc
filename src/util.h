@@ -51,7 +51,7 @@ int str_split(const char* src, const char* delims, char*** dest);
  * @return a new char* contains parsed file_name (allocated memory)
  * 
  **/
-char* parse_file_name(char *name);
+char* parse_file_name(char *name, char* path);
 
 
 

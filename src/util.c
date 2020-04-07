@@ -47,15 +47,18 @@ int print_error_errno(const char *format, ...)
 
 /* string parsing */
 
-char* parse_file_name(char *name)
+char* parse_file_name(char *name, char *path)
 {
     int name_size = strlen(name);
     char *result = malloc(name_size);
     strcpy(result, name);
 
+    if(path == NULL)
+        path = "./";
+
     if(strncmp("./", name, 2) != 0) {
         result = Realloc(result, name_size + 2);
-        sprintf(result, "./%s", name);
+        sprintf(result, "%s%s",path, name);
     }
 
     char *pos;

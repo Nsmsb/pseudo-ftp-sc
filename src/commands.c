@@ -174,7 +174,7 @@ char* run_cmd(char *cmd)
     return result;
 }
 
-char* remove_file(const char *req)
+char* remove_file(const char *req, char *path)
 {   
     char *res = malloc(MAXLINE);
     char *file;
@@ -185,9 +185,16 @@ char* remove_file(const char *req)
 
     fn = str_split(req, " ", &files_names);
 
+    // check usage (operands)
+    if(fn < 2)
+    {
+        sprintf(res, "missing operand, usage: rm <file(s)>\n");
+        return res;
+    }
+
     for (int i = 1; i < fn; i++)
     {
-        file = parse_file_name(files_names[i]);
+        file = parse_file_name(files_names[i], path);
         rm_flag = remove(file);
         
         
@@ -202,7 +209,7 @@ char* remove_file(const char *req)
 }
 
 
-char* remove_dir(const char *req)
+char* remove_dir(const char *req, char *path)
 {   
     char *res = malloc(MAXLINE);
     char *file;
@@ -210,12 +217,18 @@ char* remove_dir(const char *req)
     deleted_files = 0;
     char **files_names;
     
+    fn = str_split(req, " ", &files_names); 
 
-    fn = str_split(req, " ", &files_names);
-
-    for (int i = 1; i < fn; i++)
+    // check usage (operands)
+    if(fn < 3)
     {
-        file = parse_file_name(files_names[i]);
+        sprintf(res, "missing operand, usage: rm -r <file(s)>\n");
+        return res;
+    }
+
+    for (int i = 2; i < fn; i++)
+    {
+        file = parse_file_name(files_names[i], path);
         rm_flag = rmdir(file);
         
         if(rm_flag == 0)
@@ -228,7 +241,7 @@ char* remove_dir(const char *req)
     return res;
 }
 
-char* put_file(char *req)
+char* put_file(char *req, char *path)
 {
     ssize_t n;
     char *buff[MAXBUF];
@@ -243,7 +256,7 @@ char* put_file(char *req)
 
     for (int i = 1; i < fn; i++)
     {
-        file = parse_file_name(files_names[i]);
+        file = parse_file_name(files_names[i], path);
         fd = Open(file, O_RDONLY, 0);
         if(fd > 0)
         {
@@ -257,4 +270,44 @@ char* put_file(char *req)
     sprintf(res,"displayed %d file(s)\n", displayed_files);
     return res;
     
+}
+
+char* cd_dir(char *req, char *path)
+{
+    int fn;
+    char *res = malloc(MAXLINE);
+    char *dir, *pos;
+    char **files_names;
+    
+    fn = str_split(req, " ", &files_names);
+
+    if(fn > 2)
+    {
+        sprintf(res, "invalid option, usage: cd <dir> (only one dir)\n");
+    }
+
+    dir = files_names[1];
+
+    if ((pos=strchr(dir, '\n')) != NULL)
+        *pos = '\0';
+
+    // *path = Realloc(*path, strlen(path)+strlen(files_names[1])+1);
+    if(mkdir(dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) != 0)
+    {
+        if(errno == EEXIST)
+        {
+            strcat(path, dir);
+            sprintf(res, "moved to new directory\n");
+        }
+    } else
+    {
+        rmdir(dir);
+        sprintf(res, "No such directory\n");
+    }
+
+    
+
+
+    return res;
+
 }

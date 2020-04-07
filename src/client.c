@@ -1,30 +1,30 @@
 #include "client.h"
 #include "csapp.h"
+#include "config.h"
 #include "commands.h"
 #include "util.h"
 
 int main(int argc, char **argv)
 {
-    int clientfd, port, cmd_code;
+    int clientfd, cmd_code;
     char *host, *input, *buff;
     input = malloc(MAXLINE);
     buff = malloc(MAXLINE);
     // size_t n;
     rio_t rio;
 
-    if (argc != 3) {
-        fprintf(stderr, "usage: %s <host> <port>\n", argv[0]);
+    if (argc != 2) {
+        fprintf(stderr, "usage: %s <host>\n", argv[0]);
         exit(0);
     }
     host = argv[1];
-    port = atoi(argv[2]);
 
     /*
      * Note that the 'host' can be a name or an IP address.
      * If necessary, Open_clientfd will perform the name resolution
      * to obtain the IP address.
      */
-    clientfd = Open_clientfd(host, port);
+    clientfd = Open_clientfd(host, PORTFTP);
     
     /*
      * At this stage, the connection is established between the client
@@ -125,7 +125,7 @@ int handel_res(char *res, int cmd_code, rio_t fds) {
             printf("transfering file: %s\n", res_data[i]);
 
             // parsing file name
-            file = parse_file_name(res_data[i]);
+            file = parse_file_name(res_data[i], NULL);
             // receiving file
             get_client(file, fds);
             Free(file);

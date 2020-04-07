@@ -81,10 +81,11 @@ char* run_cmd(char *cmd);
  * 
  * 
  * @param file_names: file names to remove
+ * @param path: current path of server
  * @return response text, contains info about deleted files
  * 
  **/
-char* remove_file(const char *file_name);
+char* remove_file(const char *file_name, char *path);
 
 
 /**
@@ -92,10 +93,11 @@ char* remove_file(const char *file_name);
  * 
  * 
  * @param file_names: directories names to remove
+ * @param path: current path of server
  * @return response text, contains info about deleted directories
  * 
  **/
-char* remove_dir(const char *req);
+char* remove_dir(const char *req, char *path);
 
 /**
  * print file to stdout
@@ -104,7 +106,17 @@ char* remove_dir(const char *req);
  * @param req: request, it contains file names.
  * @return response text (details about displayed files)
  **/
-char* put_file(char *req);
+char* put_file(char *req, char *path);
+
+/**
+ * print file to stdout
+ * 
+ * 
+ * @param req: request, it contains dir name.
+ * @return response text (details about the operation)
+ * @param path: current path of server
+ **/
+char* cd_dir(char *req, char *path);
 
 
 #endif

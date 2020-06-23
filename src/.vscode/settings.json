@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "server.h": "c",
+        "csapp.h": "c",
+        "cstdio": "c",
+        "string.h": "c",
+        "stdlib.h": "c",
+        "stdio.h": "c",
+        "util.h": "c",
+        "commands.h": "c"
+    }
+}
